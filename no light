@@ -1,0 +1,373 @@
+//oiOSoul
+//By Fahed Riachi
+// fadlab 2014
+
+#include <Servo.h>
+
+
+
+////////////// Servos initialization /////////////////////
+
+// Define servos/ joints (leg, waste,head)
+Servo servoLeg;
+Servo servoWaste;
+Servo servoHead;
+
+//Define reference positions
+
+//leg
+int centerLeg=1580;  
+int leftLeg=2300;
+int rightLeg=670;
+//waste
+int centerWaste=1300;
+int forwardWaste=1670;
+int backwardWaste=777;
+//head
+int centerHead=1150;
+int leftHead=2400;
+int rightHead=600;
+
+
+//define variable to manage proximity detection
+int sensor;
+long unsigned detectionTime = 0;
+long unsigned prevDetectionTime = 0;
+int detectionCountFast = 0;
+int detectionCountSlow = 0;
+int fastDetection = 7000; // time between 2 consequetive detections where detectionCountFast is incremented.
+boolean proxDetected = false;
+
+
+//define variables to manage sound detection
+int sound;
+float rhythm = 0.3;  //0.2 and 0.3 is nice for oiO 
+int countOfDetectedBeats = 0;
+long unsigned lastBeat = 0;
+int allowedPauseBetweenSequences = 2000;
+
+//time reflexes timer
+long unsigned lastAction = 0;
+int sneezeTimer = 65000; // each 65 seconds, oiO will sneeze
+int sleepIfNoActionTimer = 45000; // oiO will dose off and sleep if no action done by user for more than 30 sec
+
+void setup() {
+
+   //Serial.begin(9600);
+   
+  
+  //Attach servos to their corresponding control pins
+   servoLeg.attach(3);
+   servoWaste.attach(5);
+   servoHead.attach(6);
+   
+   //attache Sound sensor (digital input) to Pin 8
+   pinMode(8, INPUT);   
+
+
+   //Start with 'oiO' standing posture (all servos at center)
+   servoLeg.writeMicroseconds(centerLeg);
+   servoWaste.writeMicroseconds(centerWaste);
+   servoHead.writeMicroseconds(centerHead);
+   delay(1000);
+   
+   
+  
+}
+
+void loop() {
+Serial.print("Start the game ");
+//get fresh values for oiO 3 senses: proximity, sound and ime
+sensor = analogRead(A0);
+sound = digitalRead(8);
+
+//Time based reflexes
+
+//oiO will go to sleep if no action by user for more than 30 seconds
+if((millis() - lastAction) > sleepIfNoActionTimer) {
+  doseOff();
+}
+
+//oiO will sneeze each 1 min (will not be recorded as a user action)
+if(millis() % sneezeTimer == 0) {
+  sneeze();
+}
+
+
+
+/* ##### Proximity reflex procedure ####
+oiO waits until the user approaches his head/neck, it will react by moving away (leaning backwards), in parallel
+he started keeping track of time between each time the user approaches him. If the user approaches him quickly
+after the first time, his eyes will turn yellow trying and again leans backward more quickly trying to indicate
+his is not happy by the harrasement of the user. the 3rd time he is approached quickly, his eyes become red, he
+leans very quickly to the back and anxiously nod his head left and right in disagreement, then go back to standing
+position, with his eyes breathing fading red. when he calms down, he lights up in white.
+
+oiO can do other stuff now, including repeating the sound or proximity reflex depending on the user behavior.
+
+If the user approaches him with more time between approaches, oiO behavior will be differernt, his eyes go magenta
+indicating that he likes the soft moves, and do a bit of a show, then looks at the user a blinks asking for another
+slow approach. if this happens, then oiO will go into fast, color changing movement expressing his happines, eyes goes
+through all rainbow color, and at the end he leans down slowley to rest. Then he lights up in white.
+*/
+
+// Procedure to detect if the user is frequencly or seldomly approaching to oiO. Accordingly manages (set and resets (for each 3 detections)) detectionCountFast & detectionCountSlow counters
+if(sensor < 250)
+  {
+  delay(150); //debouncing delay and recheck if object still close, if yes then consider it a real detection
+  if(sensor < 250) // enought close to sensor, start seting value for detectionCountFast and detectionCountSlow
+  { 
+     
+    detectionTime = millis();  // record time of detection
+    if (detectionCountFast !=0) // if detectionCountFast is 1 or 2 or 3 do that
+    {
+      if (detectionTime-prevDetectionTime < fastDetection ) // if less than 7 sec between detection consider to be as fast approach to robot
+        {
+        detectionCountFast++;
+        detectionCountSlow = 1;
+        }
+      else // if more than 7 sec between detection consider to be as slow approach to robot
+        { 
+        detectionCountSlow++;
+        detectionCountFast = 1; 
+        }
+    }
+    else // if detectionCountFast = 0 do that
+    {
+    detectionCountFast++;
+    detectionCountSlow++;
+    }
+    if(detectionCountFast > 3) detectionCountFast=1; //reset detectionCountFast counter each 3 fast detections in a row
+    if(detectionCountSlow > 3) detectionCountSlow=1; //reset detectionCountSlow counter each 3 slow detections in a row
+
+
+    prevDetectionTime = detectionTime;
+    proxDetected = true;
+    
+     
+    Serial.print("countFast: ");
+    Serial.print(detectionCountFast);
+    Serial.print(" CountSlow: ");
+    Serial.println(detectionCountSlow);
+    
+  }
+}//end if & of detection counters procedure
+
+
+//proxility reflex execution
+
+if(proxDetected == true && detectionCountFast == 1 && detectionCountSlow == 1) //indifferernt
+  {   Serial.print("indifferernt ");
+    
+    
+    //randomize this move as it has more probability to happen
+    int x = random(1,2);
+    if(x == 2)
+    {  
+      move3Servos(servoLeg,centerLeg,servoWaste,1000,servoHead,centerHead,0.05); 
+      delay(1000);
+      move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+    }
+    else
+    {
+      move3Servos(servoLeg,1850,servoWaste,1000,servoHead,centerHead,0.05); 
+      delay(1000);
+      move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+    }
+    proxDetected = false;
+    lastAction = millis(); //stores endtime of this action 
+  }
+  else if (proxDetected == true && detectionCountFast == 2 && detectionCountSlow == 1) //tensed
+  {
+Serial.print("tensed ");
+    move3Servos(servoLeg,1700,servoWaste,900,servoHead,centerHead,0.05);
+    delay(1000);
+    move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.08);
+    proxDetected = false;
+    lastAction = millis(); //stores endtime of this action 
+  } 
+  else if(proxDetected == true && detectionCountFast == 3 && detectionCountSlow == 1) //angry
+  { 
+Serial.print("angry ");
+  move3Servos(servoLeg,centerLeg,servoWaste,800,servoHead,1580,0.08);
+  move3Servos(servoLeg,centerLeg,servoWaste,800,servoHead,730,0.3);
+  move3Servos(servoLeg,centerLeg,servoWaste,800,servoHead,1580,0.3);
+  move3Servos(servoLeg,centerLeg,servoWaste,800,servoHead,centerHead,0.3);
+  delay(1000);
+  move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+
+  delay(2000);
+
+  proxDetected = false;
+  lastAction = millis(); //stores endtime of this action 
+  }
+  else if(proxDetected == true && detectionCountFast == 1 && detectionCountSlow == 2)  //joyful
+  { 
+  Serial.print("joyful ");
+
+  move3Servos(servoLeg,centerLeg,servoWaste,1500,servoHead,centerHead,0.03); 
+  move3Servos(servoLeg,centerLeg,servoWaste,1300,servoHead,1580,0.05);
+  move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,750,0.05);
+  move3Servos(servoLeg,1100,servoWaste,centerWaste,servoHead,1900,0.5);
+  delay(1000);
+  
+  proxDetected = false;
+  lastAction = millis(); //stores endtime of this action 
+  }
+  else if(proxDetected == true && detectionCountFast == 1 && detectionCountSlow == 3)  //happy
+  {
+ Serial.print("happy ");
+  move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+  move3Servos(servoLeg,670,servoWaste,centerWaste,servoHead,2300,0.09);
+  move3Servos(servoLeg,2300,servoWaste,centerWaste,servoHead,600,0.09);
+  delay(1000);
+  move3Servos(servoLeg,2300,servoWaste,800,servoHead,600,0.05);
+  move3Servos(servoLeg,2300,servoWaste,1250,servoHead,600,0.05);
+  delay(700);
+
+  move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+  move3Servos(servoLeg,2300,servoWaste,centerWaste,servoHead,600,0.1);
+  move3Servos(servoLeg,670,servoWaste,centerWaste,servoHead,2300,0.1);
+  delay(1000);
+  move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);  
+
+  move3Servos(servoLeg,centerLeg,servoWaste,1520,servoHead,centerHead,0.01);
+
+  proxDetected = false; 
+  lastAction = millis(); //stores endtime of this action
+  }
+  
+
+}
+/////// Call back functions ///////
+
+//Time-based reflexe functions, triggered by timers initialized in setup();
+void sneeze()
+{
+move3Servos(servoLeg,centerLeg,servoWaste,900,servoHead,centerHead,0.04);
+
+move3Servos(servoLeg,centerLeg,servoWaste,1500,servoHead,centerHead,0.3);
+move3Servos(servoLeg,centerLeg,servoWaste,1150,servoHead,centerHead,0.3);
+
+move3Servos(servoLeg,centerLeg,servoWaste,centerWaste,servoHead,centerHead,0.05);
+
+}
+
+void doseOff()
+{
+
+move3Servos(servoLeg,centerLeg,servoWaste,1400,servoHead,centerHead,2.0);
+delay(1500);
+move3Servos(servoLeg,centerLeg,servoWaste,1700,servoHead,1000,2.0);
+delay(1500);
+move3Servos(servoLeg,centerLeg,servoWaste,1850,servoHead,1000,2.0);
+delay(4000);
+move3Servos(servoLeg,centerLeg,servoWaste,1070,servoHead,centerHead,0.1);
+delay(1500);
+move3Servos(servoLeg,centerLeg,servoWaste,1070,servoHead,1000,0.08);
+delay(1500);
+
+move3Servos(servoLeg,centerLeg,servoWaste,1070,servoHead,centerHead,0.08);
+delay(1500);
+
+move3Servos(servoLeg,1200,servoWaste,1060,servoHead,1500,0.02);
+delay(1500);
+move3Servos(servoLeg,1200,servoWaste,1400,servoHead,1500,3.0);
+delay(1500);
+move3Servos(servoLeg,1200,servoWaste,1600,servoHead,1500,3.0);
+delay(1500);
+//move3Servos(servoLeg,1000,servoWaste,1900,servoHead,1000,3.0);
+for(int i=1600;i<=2300;i+=2){
+servoWaste.writeMicroseconds(i);
+delay(100);
+}
+
+  while(true){ //Deep sleep untill oiO hears a sound
+    sound = digitalRead(8);
+    if (sound == HIGH) 
+    {     
+    delay(100);
+      if (sound == HIGH) {
+      move3Servos(servoLeg,centerLeg,servoWaste,1070,servoHead,centerHead,0.1);
+
+      break;
+      }
+    }
+
+  }
+}
+
+
+//////////////////////////// Servo functions ////////////////////////////////
+void move3Servos(Servo servo1Name, float target_pos1,Servo servo2Name, float target_pos2,Servo servo3Name, float target_pos3,float easing){
+  
+  //  target_posx: has limits on start and end positions, between 600 and 2400, yet other servos are between 1000 and 2000... 
+  //  easing: 
+  //  is a value between 0.0 and 5.0, where 0.0 to 1.0 cause the servos to start movement fast but end slowely, values around zero (ex: 0.05) gives much slower/desired response of smoothing, value of 1 is fast
+  //  For values between 1 > easingx > 5 , the easing behavior changes, causing servos to move linearly start to stop, the easing controls the speed to move from current to target positions
+
+    //Prevent values out of range
+    target_pos1 = constrain(target_pos1,600,2400);
+    target_pos2 = constrain(target_pos2,600,2400);
+    target_pos3 = constrain(target_pos3,600,2400);
+    
+    easing = constrain(easing,0.0,5.0);
+
+   //get current servo pulse width (i.e position)
+   float current_pos1 = servo1Name.readMicroseconds();
+   float current_pos2 = servo2Name.readMicroseconds();
+   float current_pos3 = servo3Name.readMicroseconds();
+    
+
+   //difference of positions
+   float diff1;
+   float diff2;
+   float diff3;
+
+  while(true){
+     // calculate the required travel
+     diff1 = target_pos1 - current_pos1;
+     diff2 = target_pos2 - current_pos2;
+     diff3 = target_pos3 - current_pos3;
+  
+     // Move only when target position is not reached
+     if( fabs(diff1) > 5.0 ) { //then Move     
+       if(easing <= 1.00) current_pos1 += diff1 * easing;
+         else { //when easing value > 1.0, then behavior is to move individual increments
+           if(diff1 > 0.0) current_pos1 += easing;
+           else current_pos1 -= easing;
+       }
+        
+        servo1Name.writeMicroseconds( (int)current_pos1 );
+     }
+     if( fabs(diff2) > 5.0 ) { //then Move 
+       if(easing <= 1.00) current_pos2 += diff2 * easing;
+         else { //when easing value > 1.0, then behavior is to move individual increments
+           if(diff2 > 0.0) current_pos2 += easing;
+           else current_pos2 -= easing;
+       }
+        servo2Name.writeMicroseconds( (int)current_pos2 );
+     } 
+    if( fabs(diff3) > 5.0 ) { //then Move 
+       if(easing <= 1.00) current_pos3 += diff3 * easing;
+         else { //when easing value > 1.0, then behavior is to move individual increments 
+           if(diff3 > 0.0) current_pos3 += easing;
+           else current_pos3 -= easing;
+       }
+        servo3Name.writeMicroseconds( (int)current_pos3 );
+     }
+     //when all positions are reached, then stop   
+     else if(fabs(diff1)<=5.0 && fabs(diff2) <=5.0 && fabs(diff3) <=5.0){
+        // if diff almost 0, this means target position reached, thus remain in place and exit loop
+        break;
+       }
+ 
+     // Delay so the servos can physically reach the positions (important, but open to experimentation!)
+     delay(15);
+
+  }//end while
+ 
+}//end function
+/////////////////////////////////////// End of Servos functions ////////////////////////////////////
+
+
