@@ -111,7 +111,8 @@ if((millis() - lastAction) > sleepIfNoActionTimer) {
 }
 
 //oiO will sneeze each 1 min (will not be recorded as a user action)
-if(millis() % sneezeTimer == 0) {
+// When millis() will be devided without remainder (bez ostatka) then sneeze() function
+if(millis() % sneezeTimer == 0) {       // sneezeTimer = 65000; //  % = Modulo divider
   sneeze();
 }
 
