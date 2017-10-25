@@ -44,11 +44,9 @@ const int echoPin = 10;
 long duration;
 
 
-//define variables to manage sound detection
-int sound;
-float rhythm = 0.3;  //0.2 and 0.3 is nice for oiO 
-int countOfDetectedBeats = 0;
-long unsigned lastBeat = 0;
+
+
+
 int allowedPauseBetweenSequences = 2000;
 
 //time reflexes timer
@@ -84,8 +82,8 @@ void setup() {
 
 void loop() {
 //get fresh values for oiO 3 senses: proximity, sound and ime
-sensor = analogRead(A0);
-sound = digitalRead(8);
+
+
 // Clears the trigPin
 digitalWrite(trigPin, LOW);
 delayMicroseconds(2);
@@ -305,20 +303,6 @@ for(int i=1600;i<=2300;i+=2){
 servoWaste.writeMicroseconds(i);
 delay(100);
 }
-
-  while(true){ //Deep sleep untill oiO hears a sound
-    sound = digitalRead(8);
-    if (sound == HIGH) 
-    {     
-    delay(100);
-      if (sound == HIGH) {
-      move3Servos(servoLeg,centerLeg,servoWaste,1070,servoHead,centerHead,0.1);
-
-      break;
-      }
-    }
-
-  }
 }
 
 
